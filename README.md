@@ -1,7 +1,7 @@
 # Katz Hyperglycemia Sodium Corrector
 
 > **Domain:** Clinical Decision Support & Biomedical Computing  
-> **Reference Guidelines & Standards:** `Standard Clinical Formulations & ISO/IEC Quality Frameworks`
+> **Reference Guidelines & Standards:** `ISO/IEC Quality Frameworks`
 
 <div align="center">
 
@@ -18,92 +18,141 @@
 
 ## 📖 What It Does
 
-Katz & Hillier Corrected Sodium for Hyperglycemia
-Calculates corrected serum sodium using Katz (1.6) and Hillier (2.4) multipliers for DKA/HHS management.
+Calculates corrected serum sodium for hyperglycemic patients using the Katz (1.6) and Hillier (2.4) correction formulas for DKA/HHS management.
 
-Zero-dependency Python implementation with single and batch evaluation.
+**Correction Formulas:**
+- **Katz (1973):** Corrected Na = Measured Na + 1.6 × (Glucose - 100) / 100
+- **Hillier (1999):** Corrected Na = Measured Na + 2.4 × (Glucose - 100) / 100
+
 Author: Dr. Abu Suraih Sakhri
 License: MIT
 
 ---
 
-## ⚙️ Key Capabilities & Algorithmic Modules
+## ⚙️ Key Capabilities
 
-### 🔬 Analytical Functions
+### 🔬 Core Sodium Correction
+- **`calculate_corrected_sodium_katz(sodium, glucose)`** - Katz formula correction
+- **`calculate_corrected_sodium_hillier(sodium, glucose)`** - Hillier formula correction
+- **`calculate_metrics(**kwargs)`** - Unified interface supporting both clinical and legacy modes
 
-- **`calculate_metrics()`**: Core domain algorithm for katz-hyperglycemia-sodium-corrector.
-- **`process_single()`** — calculates and validates process_single parameters.
-- **`process_batch()`** — calculates and validates process_batch parameters.
-- **`main()`** — calculates and validates main parameters.
+### 🏥 Enterprise Features
+- **Zero-PHI Outbound Interceptor:** Blocks SSNs, MRNs, phone numbers, and patient identifiers
+- **HMAC-SHA256 Audit Trail:** Tamper-evident cryptographic logging
+- **Multi-worker Evaluation:** QC, Safety, and Protocol Conformance workers
+- **FastAPI REST API:** OpenAPI 3.1 endpoints with Prometheus metrics
+- **Active Learning:** Bayesian calibration for worker reliability
 
 ---
 
-## 📐 Mathematical Formulation & Logic
+## 📐 Mathematical Formulation
 
 ```text
-  score = primary_val
-  rounded_score = round(score, 2)
-  res = calculate_metrics(**kwargs)
-  calc_res = calculate_metrics(**r)
+Katz Correction:    corrected_na = measured_na + 1.6 * (glucose - 100) / 100
+Hillier Correction: corrected_na = measured_na + 2.4 * (glucose - 100) / 100
 ```
+
+**Input Validation:**
+- Sodium: 100-200 mEq/L (physiological range)
+- Glucose: 0-2000 mg/dL (physiological range)
+- Rejects NaN, infinity, and out-of-range values
 
 ---
 
-## 💻 CLI Quickstart & Usage
+## 💻 Installation
 
-### 1. Guided Interactive Mode
 ```bash
-python cli.py
+# Clone the repository
+git clone https://github.com/abusuraihsakhri/katz-hyperglycemia-sodium-corrector.git
+cd katz-hyperglycemia-sodium-corrector
+
+# Install dependencies
+pip install fastapi uvicorn pydantic pytest
+
+# Set audit secret key (required)
+export AUDIT_SECRET_KEY="your-secure-random-key-here"
 ```
 
-### 2. Direct Parameterized Evaluation
+---
+
+## 💻 CLI Usage
+
+### Clinical Sodium Correction (Single Patient)
 ```bash
-python cli.py --task-id <value> --target <value> --primary <value> --secondary <value>
+# Using clinical parameters
+python katz_sodium.py single --sodium 135 --glucose 450
+
+# Legacy scoring mode
+python katz_sodium.py single --v1 28.5 --v2 14.2
 ```
 
-### Parameter Reference
-- `--task-id`: Specifies input measurement or parameter value.
-- `--target`: Specifies input measurement or parameter value.
-- `--primary`: Specifies input measurement or parameter value.
-- `--secondary`: Specifies input measurement or parameter value.
-- `--critical`: Specifies input measurement or parameter value.
-- `--status`: Specifies input measurement or parameter value.
-- `--input`: Specifies input measurement or parameter value.
-- `--output`: Specifies input measurement or parameter value.
+### Batch Processing
+```bash
+# Clinical batch (CSV with sodium, glucose columns)
+python katz_sodium.py batch -i patients.csv -o corrected_results.csv
+```
 
-### Input Data Schema
+### Enterprise CLI (Full Platform)
+```bash
+# Set required environment variable
+export AUDIT_SECRET_KEY="your-secure-random-key"
 
-| Field | Description | Requirement |
-|:------|:------------|:------------|
-| `Patient_ID` | Parameter / observation metric | Required |
-| `v1` | Parameter / observation metric | Required |
-| `v2` | Parameter / observation metric | Required |
-| `v3` | Parameter / observation metric | Required |
+# Run audit evaluation
+python cli.py audit --task-id TASK-001 --primary 28.5 --secondary 14.2
+
+# Interactive chat with supervisor
+python cli.py chat "Explain sodium correction"
+
+# Verify audit trail integrity
+python cli.py verify-audit
+
+# Launch REST API server
+python cli.py serve --host 0.0.0.0 --port 8000
+```
+
+### Input Data Schema (Batch CSV)
+
+**Clinical Mode:**
+| Field | Description | Unit |
+|:------|:------------|:-----|
+| sodium | Measured serum sodium | mEq/L |
+| glucose | Serum glucose | mg/dL |
+
+**Legacy Mode:**
+| Field | Description |
+|:------|:------------|
+| v1 | Primary parameter |
+| v2 | Secondary parameter |
+| v3 | Tertiary parameter |
 
 ---
 
-## 🛡️ Security & Enterprise Architecture
+## 🛡️ Security Architecture
 
-* **Zero-PHI Outbound Interceptor:** Active AST and regex inspection blocking SSNs, MRNs, phone numbers, and patient identifiers.
-* **Tamper-Evident HMAC-SHA256 Audit Trail:** Chained, cryptographically signed logs for every evaluation and state transition.
-* **Air-Gapped LLM Reasoning Adapter:** Agnostic integration for local Ollama instances (`llama3`, `mistral`), Claude 3.5 Sonnet, GPT-4o, and deterministic test mocks.
-* **Active Learning Bayesian Calibration:** Dynamic tracker updating worker reliability weights and monitoring Brier calibration drift.
-* **FastAPI & Prometheus Telemetry:** Exposes OpenAPI 3.1 REST endpoints and operational Prometheus metrics (`/metrics`).
+- **Zero-PHI Outbound Interceptor:** Regex-based detection and blocking of PHI patterns
+- **HMAC-SHA256 Audit Trail:** Chained, cryptographically signed logs (requires `AUDIT_SECRET_KEY`)
+- **Input Validation:** Physiological range checking for clinical parameters
+
+**⚠️ Important:** The `AUDIT_SECRET_KEY` environment variable must be set to a secure random value (minimum 16 characters) before running the enterprise features.
 
 ---
 
-## 🧪 Testing & Verification
+## 🧪 Testing
 
 Run the automated test suite:
 
 ```bash
+# Set audit key for tests
+export AUDIT_SECRET_KEY="test-audit-key-for-development-only"
+
+# Run all tests
 pytest -v
 ```
 
-Execute high-throughput batch simulation benchmarks:
+Execute high-throughput simulation benchmarks:
 
 ```bash
-python simulator.py --tasks 1000 --concurrency 8
+python simulator.py 100
 ```
 
 ---
@@ -111,6 +160,37 @@ python simulator.py --tasks 1000 --concurrency 8
 ## 🐳 Container Deployment
 
 ```bash
+# Build and run with Docker
+export AUDIT_SECRET_KEY="your-production-key-here"
+docker-compose up --build
+
+# Or with Docker directly
 docker build -t katz-hyperglycemia-sodium-corrector .
-docker run -p 8000:8000 katz-hyperglycemia-sodium-corrector
+docker run -p 8000:8000 -e AUDIT_SECRET_KEY="your-key" katz-hyperglycemia-sodium-corrector
+```
+
+---
+
+## 📁 Project Structure
+
+```
+katz-hyperglycemia-sodium-corrector/
+├── katz_sodium.py          # Core sodium correction algorithm
+├── cli.py                  # Enterprise CLI interface
+├── enrichment.py           # Enrichment feature engines
+├── simulator.py            # High-throughput simulation
+├── agents/
+│   ├── base.py             # Security, PHI guard, audit trail
+│   ├── models.py           # Pydantic data models
+│   ├── supervisor.py       # Multi-agent orchestrator
+│   ├── workers.py          # Specialized evaluation workers
+│   ├── api.py              # FastAPI REST endpoints
+│   ├── metrics.py          # Prometheus metrics
+│   ├── learning.py         # Bayesian calibration
+│   └── streamer.py         # WebSocket telemetry
+├── tests/                  # Test suite
+├── web/                    # Web dashboard
+├── Dockerfile              # Container definition
+├── docker-compose.yml      # Container orchestration
+└── pyproject.toml          # Python project configuration
 ```

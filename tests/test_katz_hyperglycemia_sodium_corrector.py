@@ -3,12 +3,13 @@ Automated Pytest Test Suite for Katz Hyperglycemia Sodium Corrector.
 Domain: Clinical & Biomedical AI
 Standard: CAP / CLSI / ISO Standards
 """
+import os
 import sys
 from pathlib import Path
 sys.path.insert(0, str(Path(__file__).parent.parent))
 
 import pytest
-from agents.base import PHIGuard, AuditLogger, SecurityException
+from agents.base import PHIGuard, AuditLogger, SecurityException, AuditTrail
 from agents.models import SystemTaskPayload, UrgencyLevel, SystemIntegrityStatus
 from agents.workers import InvariantQCWorker, SafetyEscalationWorker, ProtocolConformanceWorker
 from agents.supervisor import SystemSupervisor
@@ -63,3 +64,31 @@ def test_supervisor_consensus_and_audit():
     assert main(["audit", "--task-id", "CLI-TEST-01"]) == 0
     assert main(["chat", "Explain", "specifications"]) == 0
     assert main(["verify-audit"]) == 0
+
+
+def test_audit_trail_requires_secret_key():
+    """Test that AuditTrail requires a secret key (no hardcoded default)."""
+    # Save and clear the environment variable
+    original_key = os.environ.pop("AUDIT_SECRET_KEY", None)
+    try:
+        with pytest.raises(RuntimeError, match="AUDIT_SECRET_KEY"):
+            AuditTrail()
+    finally:
+        # Restore the original key
+        if original_key:
+            os.environ["AUDIT_SECRET_KEY"] = original_key
+
+
+def test_audit_trail_rejects_short_key():
+    """Test that AuditTrail rejects short secret keys."""
+    with pytest.raises(ValueError, match="at least 16 characters"):
+        AuditTrail(secret_key="short")
+
+
+def test_audit_trail_accepts_valid_key():
+    """Test that AuditTrail works with a valid key."""
+    trail = AuditTrail(secret_key="this-is-a-valid-key-for-testing")
+    entry = trail.log("test_actor", "test_tier", "TEST_EVENT", {"test": "data"})
+    assert entry["audit_id"].startswith("AUDIT-")
+    assert entry["current_hash"] != ""
+    assert trail.verify_integrity() is True
