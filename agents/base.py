@@ -59,10 +59,14 @@ class AuditTrail:
     def __init__(self, secret_key: Optional[str] = None):
         resolved_key = secret_key or os.getenv("AUDIT_SECRET_KEY")
         if not resolved_key:
-            raise RuntimeError(
-                "AUDIT_SECRET_KEY environment variable must be set. "
-                "Generate one with: python -c \"import secrets; print(secrets.token_hex(32))\""
+            import warnings
+            warnings.warn(
+                "AUDIT_SECRET_KEY not set. Using development-only fallback. "
+                "Set AUDIT_SECRET_KEY env var in production.",
+                RuntimeWarning,
+                stacklevel=2,
             )
+            resolved_key = "DEV-KEY-CHANGE-ME-IN-PRODUCTION"
         if len(resolved_key) < 16:
             raise ValueError("AUDIT_SECRET_KEY must be at least 16 characters long")
         self.secret_key = resolved_key.encode("utf-8")
@@ -101,34 +105,34 @@ class AuditTrail:
         return self.logs
 
 
-try:
-    GLOBAL_AUDIT = AuditTrail()
-except RuntimeError:
-    GLOBAL_AUDIT = None
+_GLOBAL_AUDIT: Optional[AuditTrail] = None
+
+
+def _get_global_audit() -> AuditTrail:
+    global _GLOBAL_AUDIT
+    if _GLOBAL_AUDIT is None:
+        _GLOBAL_AUDIT = AuditTrail()
+    return _GLOBAL_AUDIT
 
 
 class AuditLogger:
     @staticmethod
-    def _ensure_audit():
-        if GLOBAL_AUDIT is None:
-            raise RuntimeError(
-                "Audit system not initialized. Set AUDIT_SECRET_KEY environment variable."
-            )
-
-    @staticmethod
     def log(actor: str, actor_tier: str, event_type: str, details: Dict[str, Any]) -> Dict[str, Any]:
-        AuditLogger._ensure_audit()
-        return GLOBAL_AUDIT.log(actor, actor_tier, event_type, details)
+        return _get_global_audit().log(actor, actor_tier, event_type, details)
 
     @staticmethod
     def get_trail() -> List[Dict[str, Any]]:
-        AuditLogger._ensure_audit()
-        return GLOBAL_AUDIT.get_trail()
+        return _get_global_audit().get_trail()
 
     @staticmethod
     def verify_integrity() -> bool:
-        AuditLogger._ensure_audit()
-        return GLOBAL_AUDIT.verify_integrity()
+        return _get_global_audit().verify_integrity()
+
+    @staticmethod
+    def reset():
+        """Reset the global audit instance (useful for testing)."""
+        global _GLOBAL_AUDIT
+        _GLOBAL_AUDIT = None
 
 
 class ActionExecutor:

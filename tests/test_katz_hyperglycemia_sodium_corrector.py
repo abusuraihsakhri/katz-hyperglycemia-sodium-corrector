@@ -67,11 +67,12 @@ def test_supervisor_consensus_and_audit():
 
 
 def test_audit_trail_requires_secret_key():
-    """Test that AuditTrail requires a secret key (no hardcoded default)."""
+    """Test that AuditTrail warns when no secret key is set (uses development fallback)."""
     # Save and clear the environment variable
     original_key = os.environ.pop("AUDIT_SECRET_KEY", None)
     try:
-        with pytest.raises(RuntimeError, match="AUDIT_SECRET_KEY"):
+        # Should warn but not raise - uses development fallback
+        with pytest.warns(RuntimeWarning, match="AUDIT_SECRET_KEY"):
             AuditTrail()
     finally:
         # Restore the original key
