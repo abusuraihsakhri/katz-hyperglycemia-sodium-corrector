@@ -77,7 +77,8 @@ class AuditTrail:
 
     def log(self, actor: str, actor_tier: str, event_type: str, details: Dict[str, Any]) -> Dict[str, Any]:
         payload_str = json.dumps(details, sort_keys=True)
-        assert_no_phi(payload_str)
+        for identifier in (actor, actor_tier, event_type, payload_str):
+            assert_no_phi(identifier)
         payload_hash = hashlib.sha256(payload_str.encode("utf-8")).hexdigest()
         audit_id = f"AUDIT-{int(time.time()*1000)}-{len(self.logs)+1}"
         ts = datetime.now(timezone.utc).isoformat()
