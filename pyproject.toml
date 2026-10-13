@@ -38,6 +38,12 @@ dev = [
 [project.scripts]
 katz-sodium = "cli:main"
 
+[tool.setuptools]
+py-modules = ["katz_sodium", "cli", "enrichment", "simulator"]
+
+[tool.setuptools.packages.find]
+include = ["agents*"]
+
 [tool.pytest.ini_options]
 testpaths = ["tests", "."]
 python_files = ["test_*.py"]
