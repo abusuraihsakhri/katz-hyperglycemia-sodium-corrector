@@ -37,11 +37,11 @@ Requires Python 3.10 or newer.
 ```bash
 python -m pip install -e ".[dev]"
 python katz_sodium.py single --sodium 135 --glucose 400
-python katz_sodium.py batch --input sample.csv --output results.csv
+python katz_sodium.py batch --input sample_clinical.csv --output results.csv
 python -m pytest -q
 ```
 
-The module also exposes `calculate_corrected_sodium_katz`, `calculate_corrected_sodium_hillier`, and `calculate_metrics`. For backward compatibility, `calculate_metrics(v1=..., v2=...)` and legacy CSV fields remain supported, but **should not be interpreted as corrected sodium**. Clinical input requires both sodium and glucose. Clinical CSV column names are case-insensitive and accept `sodium/glucose` or `measured_sodium/measured_glucose`.
+The module also exposes `calculate_corrected_sodium_katz`, `calculate_corrected_sodium_hillier`, and `calculate_metrics`. For backward compatibility, `calculate_metrics(v1=..., v2=...)` and legacy CSV fields remain supported, but **should not be interpreted as corrected sodium**. Clinical input requires both sodium and glucose. The existing `sample.csv` demonstrates **legacy scoring**, not sodium correction. Clinical CSV column names are case-insensitive and accept `sodium/glucose` or `measured_sodium/measured_glucose`.
 
 ## Optional API and audit service
 
