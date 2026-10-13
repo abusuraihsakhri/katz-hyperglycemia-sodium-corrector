@@ -257,9 +257,9 @@ def main(argv=None):
     single_parser = subparsers.add_parser("single", help="Evaluate single case")
     single_parser.add_argument("--sodium", type=float, help="Measured serum sodium (mEq/L)")
     single_parser.add_argument("--glucose", type=float, help="Serum glucose (mg/dL)")
-    single_parser.add_argument("--v1", type=float, default=10.0, help="Primary parameter (legacy mode)")
-    single_parser.add_argument("--v2", type=float, default=5.0, help="Secondary parameter (legacy mode)")
-    single_parser.add_argument("--v3", type=float, default=2.0, help="Tertiary parameter (legacy mode)")
+    single_parser.add_argument("--v1", type=float, help="Primary parameter (legacy mode)")
+    single_parser.add_argument("--v2", type=float, help="Secondary parameter (legacy mode)")
+    single_parser.add_argument("--v3", type=float, help="Tertiary parameter (legacy mode)")
     single_parser.set_defaults(func=process_single)
 
     # Batch parser
@@ -270,9 +270,18 @@ def main(argv=None):
     args = parser.parse_args(argv)
 
     if args.command == "single":
-        args.func(args)
+        if (args.sodium is None and args.glucose is None
+                and all(getattr(args, key) is None for key in ("v1", "v2", "v3"))):
+            parser.error("Provide both --sodium and --glucose, or explicit --v1/--v2/--v3 legacy inputs")
+        try:
+            args.func(args)
+        except (ValueError, TypeError) as exc:
+            parser.error(str(exc))
     elif args.command == "batch":
-        process_batch(args.input, args.output)
+        try:
+            process_batch(args.input, args.output)
+        except (ValueError, TypeError) as exc:
+            parser.error(str(exc))
 
 
 if __name__ == "__main__":
