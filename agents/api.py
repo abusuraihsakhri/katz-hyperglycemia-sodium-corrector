@@ -2,17 +2,28 @@
 FastAPI REST API Server for Katz Hyperglycemia Sodium Corrector.
 """
 from typing import Dict, Any, List
+from contextlib import asynccontextmanager
 from fastapi import FastAPI, HTTPException
 from pydantic import BaseModel
 from .base import AuditLogger, PHIGuard
 from .models import SystemTaskPayload, ConsensusDossier
 from .supervisor import SystemSupervisor
+from katz_sodium import calculate_metrics
 
 supervisor = SystemSupervisor(model_provider="mock")
 
+@asynccontextmanager
+async def lifespan(app: FastAPI):
+    # Fail fast rather than reporting a healthy service with an unsigned
+    # or development-key audit ledger.
+    AuditLogger.get_trail()
+    yield
+
+
 app = FastAPI(
+    lifespan=lifespan,
     title="Katz Hyperglycemia Sodium Corrector API",
-    description="Enterprise Distributed Component Platform (Clinical & Biomedical AI)",
+    description="Sodium correction calculator and illustrative rule-evaluation interface",
     version="3.0.0-ENTERPRISE",
 )
 
@@ -21,9 +32,22 @@ class ChatRequest(BaseModel):
     query: str
 
 
+class SodiumRequest(BaseModel):
+    sodium: float
+    glucose: float
+
+
+@app.post("/api/corrected-sodium")
+def api_corrected_sodium(payload: SodiumRequest):
+    try:
+        return calculate_metrics(sodium=payload.sodium, glucose=payload.glucose)
+    except (ValueError, TypeError) as exc:
+        raise HTTPException(status_code=422, detail=str(exc)) from exc
+
+
 @app.get("/health")
 def health():
-    return {"status": "HEALTHY", "service": "katz-hyperglycemia-sodium-corrector", "domain": "Clinical & Biomedical AI", "standard": "CAP / CLSI / ISO Standards", "version": "3.0.0-ENTERPRISE"}
+    return {"status": "HEALTHY", "service": "katz-hyperglycemia-sodium-corrector", "domain": "Clinical & Biomedical AI", "standard": "Illustrative auxiliary rules, not clinically validated", "version": "3.0.0-ENTERPRISE"}
 
 
 @app.get("/metrics")

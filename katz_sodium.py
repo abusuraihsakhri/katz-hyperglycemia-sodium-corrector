@@ -16,6 +16,7 @@ import argparse
 import csv
 import json
 import math
+import os
 import sys
 from typing import Dict, Any, List, Optional
 
@@ -85,10 +86,18 @@ def calculate_metrics(**kwargs) -> Dict[str, Any]:
     - Legacy mode: v1, v2, v3 parameters (generic scoring)
     """
     # Check if clinical parameters are provided
-    sodium = kwargs.get("sodium") or kwargs.get("measured_sodium")
-    glucose = kwargs.get("glucose") or kwargs.get("measured_glucose")
+    sodium = kwargs.get("sodium")
+    if sodium is None:
+        sodium = kwargs.get("measured_sodium")
+    glucose = kwargs.get("glucose")
+    if glucose is None:
+        glucose = kwargs.get("measured_glucose")
 
-    if sodium is not None and glucose is not None:
+    # Never silently fall back to unrelated legacy scoring when one
+    # clinical measurement is omitted or invalid (including zero).
+    if sodium is not None or glucose is not None:
+        if sodium is None or glucose is None:
+            raise ValueError("Both sodium and glucose are required for clinical correction")
         return _calculate_clinical_metrics(float(sodium), float(glucose))
 
     # Legacy generic scoring mode
@@ -104,15 +113,17 @@ def _calculate_clinical_metrics(sodium: float, glucose: float) -> Dict[str, Any]
     hillier_corrected = calculate_corrected_sodium_hillier(sodium, glucose)
 
     # Clinical interpretation
-    if katz_corrected < 130:
+    if katz_corrected < 135:
         classification = "Hyponatremia"
-        recommendation = "Evaluate volume status; consider free water restriction or hypertonic saline per protocol"
-    elif katz_corrected > 150:
+    elif katz_corrected > 145:
         classification = "Hypernatremia"
-        recommendation = "Evaluate for dehydration; gradual free water replacement recommended"
     else:
         classification = "Normal corrected sodium"
-        recommendation = "Continue monitoring; corrected sodium within normal range"
+    recommendation = (
+        "Estimated correction only; interpret with clinical context, "
+        "serial electrolytes, tonicity, and volume status. "
+        "Do not base treatment solely on this result."
+    )
 
     return {
         "tool": "katz-hyperglycemia-sodium-corrector",
@@ -173,33 +184,59 @@ def process_single(args) -> None:
 
 
 def process_batch(input_csv: str, output_csv: str) -> None:
-    with open(input_csv, mode="r", encoding="utf-8-sig") as f:
+    if os.path.abspath(input_csv) == os.path.abspath(output_csv):
+        raise ValueError("Input and output CSV paths must differ")
+    with open(input_csv, mode="r", encoding="utf-8-sig", newline="") as f:
         reader = csv.DictReader(f)
         fieldnames = list(reader.fieldnames or [])
         rows = list(reader)
 
-    # Detect if this is a clinical batch (has sodium/glucose columns)
-    fieldnames_lower = [f.lower() for f in fieldnames]
-    is_clinical = "sodium" in fieldnames_lower and "glucose" in fieldnames_lower
+    # CSV headers are handled case-insensitively; incomplete clinical
+    # datasets must fail rather than producing misleading legacy scores.
+    normalized_headers = [name.strip().lower() for name in fieldnames]
+    if not fieldnames or len(normalized_headers) != len(set(normalized_headers)):
+        raise ValueError("CSV requires non-duplicate column headers")
+    has_sodium = any(name in normalized_headers for name in ("sodium", "measured_sodium"))
+    has_glucose = any(name in normalized_headers for name in ("glucose", "measured_glucose"))
+    if has_sodium != has_glucose:
+        raise ValueError("Clinical CSV requires both sodium and glucose columns")
+    is_clinical = has_sodium and has_glucose
 
-    if is_clinical:
-        out_fields = fieldnames + [
-            "katz_corrected_sodium", "hillier_corrected_sodium",
-            "classification", "clinical_recommendation"
-        ]
-    else:
-        out_fields = fieldnames + ["score", "classification", "clinical_recommendation"]
-
+    result_fields = ([
+        "katz_corrected_sodium", "hillier_corrected_sodium",
+        "classification", "clinical_recommendation"
+    ] if is_clinical else ["score", "classification", "clinical_recommendation"])
+    out_fields = fieldnames + [name for name in result_fields if name not in fieldnames]
     out_rows = []
 
-    for r in rows:
-        calc_res = calculate_metrics(**r)
-        row_dict = dict(r)
+    for index, row in enumerate(rows, start=2):
+        if None in row:
+            raise ValueError(f"CSV row {index} contains more values than headers")
+        normalized = {key.strip().lower(): value for key, value in row.items()}
+        try:
+            if is_clinical:
+                sodium = normalized.get("sodium", normalized.get("measured_sodium"))
+                glucose = normalized.get("glucose", normalized.get("measured_glucose"))
+                if not sodium or not glucose:
+                    raise ValueError("Missing sodium or glucose")
+                calc_res = calculate_metrics(sodium=sodium, glucose=glucose)
+            else:
+                calc_res = calculate_metrics(**normalized)
+        except (TypeError, ValueError) as exc:
+            raise ValueError(f"Invalid data in CSV row {index}: {exc}") from exc
+
+        # Prevent cells supplied by untrusted CSVs from executing formulas
+        # when opened in spreadsheet software.
+        row_dict = {
+            key: ("'" + value if isinstance(value, str)
+                  and value.lstrip().startswith(("=", "+", "-", "@")) else value)
+            for key, value in row.items()
+        }
         if is_clinical:
-            row_dict["katz_corrected_sodium"] = calc_res.get("katz_corrected_sodium_mEq_L", "")
-            row_dict["hillier_corrected_sodium"] = calc_res.get("hillier_corrected_sodium_mEq_L", "")
+            row_dict["katz_corrected_sodium"] = calc_res["katz_corrected_sodium_mEq_L"]
+            row_dict["hillier_corrected_sodium"] = calc_res["hillier_corrected_sodium_mEq_L"]
         else:
-            row_dict["score"] = calc_res.get("score", "")
+            row_dict["score"] = calc_res["score"]
         row_dict["classification"] = calc_res["classification"]
         row_dict["clinical_recommendation"] = calc_res["clinical_recommendation"]
         out_rows.append(row_dict)
@@ -220,9 +257,9 @@ def main(argv=None):
     single_parser = subparsers.add_parser("single", help="Evaluate single case")
     single_parser.add_argument("--sodium", type=float, help="Measured serum sodium (mEq/L)")
     single_parser.add_argument("--glucose", type=float, help="Serum glucose (mg/dL)")
-    single_parser.add_argument("--v1", type=float, default=10.0, help="Primary parameter (legacy mode)")
-    single_parser.add_argument("--v2", type=float, default=5.0, help="Secondary parameter (legacy mode)")
-    single_parser.add_argument("--v3", type=float, default=2.0, help="Tertiary parameter (legacy mode)")
+    single_parser.add_argument("--v1", type=float, help="Primary parameter (legacy mode)")
+    single_parser.add_argument("--v2", type=float, help="Secondary parameter (legacy mode)")
+    single_parser.add_argument("--v3", type=float, help="Tertiary parameter (legacy mode)")
     single_parser.set_defaults(func=process_single)
 
     # Batch parser
@@ -233,9 +270,18 @@ def main(argv=None):
     args = parser.parse_args(argv)
 
     if args.command == "single":
-        args.func(args)
+        if (args.sodium is None and args.glucose is None
+                and all(getattr(args, key) is None for key in ("v1", "v2", "v3"))):
+            parser.error("Provide both --sodium and --glucose, or explicit --v1/--v2/--v3 legacy inputs")
+        try:
+            args.func(args)
+        except (ValueError, TypeError) as exc:
+            parser.error(str(exc))
     elif args.command == "batch":
-        process_batch(args.input, args.output)
+        try:
+            process_batch(args.input, args.output)
+        except (ValueError, TypeError) as exc:
+            parser.error(str(exc))
 
 
 if __name__ == "__main__":

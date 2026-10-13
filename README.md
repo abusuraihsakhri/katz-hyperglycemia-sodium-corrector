@@ -1,196 +1,76 @@
 # Katz Hyperglycemia Sodium Corrector
 
-> **Domain:** Clinical Decision Support & Biomedical Computing  
-> **Reference Guidelines & Standards:** `ISO/IEC Quality Frameworks`
+Calculate estimated serum sodium in hyperglycemia using the **Katz (1.6)** and **Hillier (2.4)** correction factors. The repository includes a dependency-free Python calculator and CSV processor, a standalone browser calculator, and a separate FastAPI audit-service interface.
 
-<div align="center">
+## Browser application
 
-[![License: MIT](https://img.shields.io/badge/License-MIT-blue.svg)](LICENSE)
-![Python](https://img.shields.io/badge/Python-3.10%20%7C%203.11%20%7C%203.12-3776AB.svg?logo=python&logoColor=white)
-![FastAPI](https://img.shields.io/badge/FastAPI-0.111-009688.svg?logo=fastapi&logoColor=white)
-![Audit Trail](https://img.shields.io/badge/Audit-HMAC--SHA256_Tamper--Evident-brightgreen.svg)
-![Zero-PHI Guard](https://img.shields.io/badge/Guard-Zero--PHI_Outbound-blue.svg)
-![Docker](https://img.shields.io/badge/Docker-Ready-2496ED.svg?logo=docker&logoColor=white)
+Open [web/index.html](web/index.html) locally in a modern browser. The static calculator is designed for GitHub Pages; the publishing workflow is in [pages.yml](.github/workflows/pages.yml). A live URL will be listed here only after the deployment is verified.
 
-</div>
+Enter measured serum sodium in **mEq/L** and glucose in **mg/dL**, then select **Calculate**. The page displays both corrected sodium estimates, their difference, and a Katz-based comparison with the conventional adult sodium reference interval of 135–145 mEq/L.
 
----
+The browser calculator requires no Python, backend, account, or external scripts. It performs the computation locally without sending or saving inputs. It supports keyboard navigation and small screens. It has no batch upload interface; use the Python CLI for CSV input.
 
-## 📖 What It Does
+## Formula and scope
 
-Calculates corrected serum sodium for hyperglycemic patients using the Katz (1.6) and Hillier (2.4) correction formulas for DKA/HHS management.
-
-**Correction Formulas:**
-- **Katz (1973):** Corrected Na = Measured Na + 1.6 × (Glucose - 100) / 100
-- **Hillier (1999):** Corrected Na = Measured Na + 2.4 × (Glucose - 100) / 100
-
-Author: Dr. Abu Suraih Sakhri
-License: MIT
-
----
-
-## ⚙️ Key Capabilities
-
-### 🔬 Core Sodium Correction
-- **`calculate_corrected_sodium_katz(sodium, glucose)`** - Katz formula correction
-- **`calculate_corrected_sodium_hillier(sodium, glucose)`** - Hillier formula correction
-- **`calculate_metrics(**kwargs)`** - Unified interface supporting both clinical and legacy modes
-
-### 🏥 Enterprise Features
-- **Zero-PHI Outbound Interceptor:** Blocks SSNs, MRNs, phone numbers, and patient identifiers
-- **HMAC-SHA256 Audit Trail:** Tamper-evident cryptographic logging
-- **Multi-worker Evaluation:** QC, Safety, and Protocol Conformance workers
-- **FastAPI REST API:** OpenAPI 3.1 endpoints with Prometheus metrics
-- **Active Learning:** Bayesian calibration for worker reliability
-
----
-
-## 📐 Mathematical Formulation
+For glucose in mg/dL:
 
 ```text
-Katz Correction:    corrected_na = measured_na + 1.6 * (glucose - 100) / 100
-Hillier Correction: corrected_na = measured_na + 2.4 * (glucose - 100) / 100
+Corrected sodium (mEq/L) = measured sodium + factor × (glucose − 100) / 100
+Katz factor:   1.6 mEq/L per 100 mg/dL
+Hillier factor: 2.4 mEq/L per 100 mg/dL
 ```
 
-**Input Validation:**
-- Sodium: 100-200 mEq/L (physiological range)
-- Glucose: 0-2000 mg/dL (physiological range)
-- Rejects NaN, infinity, and out-of-range values
+Example: measured Na = 135 mEq/L, glucose = 400 mg/dL yields **139.8 mEq/L (Katz)** and **142.2 mEq/L (Hillier)**.
 
----
+Input bounds in the Python implementation: measured sodium 100–200 mEq/L and glucose >0–2000 mg/dL. The browser UI is restricted to glucose 100–2000 mg/dL because the correction is intended for hyperglycemia. These are software validation limits, **not clinical safety thresholds**.
 
-## 💻 Installation
+**Clinical limitation:** These are estimates, not direct measurements of true sodium at euglycemia. The Hillier study found nonlinearity, particularly when glucose exceeded 400 mg/dL; fixed correction factors are therefore approximations. Consider measured and serial sodium, osmolality/tonicity, volume status, and the full clinical context. Do not use this calculator as a treatment protocol or to determine fluid/hypertonic saline therapy.
+
+Primary literature:
+- Katz MA. *Hyperglycemia-induced hyponatremia—calculation of expected serum sodium depression.* N Engl J Med. 1973;289:843–844. [doi:10.1056/NEJM197310182891607](https://doi.org/10.1056/NEJM197310182891607)
+- Hillier TA, Abbott RD, Barrett EJ. *Hyponatremia: evaluating the correction factor for hyperglycemia.* Am J Med. 1999;106:399–403. [doi:10.1016/S0002-9343(99)00055-8](https://doi.org/10.1016/S0002-9343(99)00055-8)
+
+## Python use
+
+Requires Python 3.10 or newer.
 
 ```bash
-# Clone the repository
-git clone https://github.com/abusuraihsakhri/katz-hyperglycemia-sodium-corrector.git
-cd katz-hyperglycemia-sodium-corrector
-
-# Install dependencies
-pip install fastapi uvicorn pydantic pytest
-
-# Set audit secret key (required)
-export AUDIT_SECRET_KEY="your-secure-random-key-here"
+python -m pip install -e ".[dev]"
+python katz_sodium.py single --sodium 135 --glucose 400
+python katz_sodium.py batch --input sample_clinical.csv --output results.csv
+python -m pytest -q
 ```
 
----
+The module also exposes `calculate_corrected_sodium_katz`, `calculate_corrected_sodium_hillier`, and `calculate_metrics`. For backward compatibility, `calculate_metrics(v1=..., v2=...)` and legacy CSV fields remain supported, but **should not be interpreted as corrected sodium**. Clinical input requires both sodium and glucose. The existing `sample.csv` demonstrates **legacy scoring**, not sodium correction. Clinical CSV column names are case-insensitive and accept `sodium/glucose` or `measured_sodium/measured_glucose`.
 
-## 💻 CLI Usage
-
-### Clinical Sodium Correction (Single Patient)
-```bash
-# Using clinical parameters
-python katz_sodium.py single --sodium 135 --glucose 450
-
-# Legacy scoring mode
-python katz_sodium.py single --v1 28.5 --v2 14.2
-```
-
-### Batch Processing
-```bash
-# Clinical batch (CSV with sodium, glucose columns)
-python katz_sodium.py batch -i patients.csv -o corrected_results.csv
-```
-
-### Enterprise CLI (Full Platform)
-```bash
-# Set required environment variable
-export AUDIT_SECRET_KEY="your-secure-random-key"
-
-# Run audit evaluation
-python cli.py audit --task-id TASK-001 --primary 28.5 --secondary 14.2
-
-# Interactive chat with supervisor
-python cli.py chat "Explain sodium correction"
-
-# Verify audit trail integrity
-python cli.py verify-audit
-
-# Launch REST API server
-python cli.py serve --host 0.0.0.0 --port 8000
-```
-
-### Input Data Schema (Batch CSV)
-
-**Clinical Mode:**
-| Field | Description | Unit |
-|:------|:------------|:-----|
-| sodium | Measured serum sodium | mEq/L |
-| glucose | Serum glucose | mg/dL |
-
-**Legacy Mode:**
-| Field | Description |
-|:------|:------------|
-| v1 | Primary parameter |
-| v2 | Secondary parameter |
-| v3 | Tertiary parameter |
-
----
-
-## 🛡️ Security Architecture
-
-- **Zero-PHI Outbound Interceptor:** Regex-based detection and blocking of PHI patterns
-- **HMAC-SHA256 Audit Trail:** Chained, cryptographically signed logs (requires `AUDIT_SECRET_KEY`)
-- **Input Validation:** Physiological range checking for clinical parameters
-
-**⚠️ Important:** The `AUDIT_SECRET_KEY` environment variable must be set to a secure random value (minimum 16 characters) before running the enterprise features.
-
----
-
-## 🧪 Testing
-
-Run the automated test suite:
+## Optional API and audit service
 
 ```bash
-# Set audit key for tests
-export AUDIT_SECRET_KEY="test-audit-key-for-development-only"
-
-# Run all tests
-pytest -v
+export AUDIT_SECRET_KEY="replace-with-a-unique-random-secret"
+python cli.py serve --host 127.0.0.1 --port 8000
 ```
 
-Execute high-throughput simulation benchmarks:
+- `POST /api/corrected-sodium`: JSON `{"sodium":135,"glucose":400}`; returns both correction estimates.
+- `GET /health`: basic service status.
+- `POST /api/audit` and `GET /api/audit/logs`: separate generic task assessment and in-memory HMAC audit trail.
+- `POST /api/chat`: deterministic mock response, **not an actual clinical or LLM consultation**.
+
+The auxiliary generic task workers use illustrative numerical thresholds and **must not be used as validated medical triage rules**. PHI detection uses a limited set of patterns and does **not** constitute HIPAA de-identification. Avoid entering patient identifiers into the API or CSV files.
+
+Set a secret key of at least 16 characters for audit signing. The application warns when it uses a development-only fallback; setting `ENVIRONMENT=production` prevents that fallback. The Docker Compose configuration requires an explicit `AUDIT_SECRET_KEY`.
 
 ```bash
-python simulator.py 100
+AUDIT_SECRET_KEY="replace-with-a-unique-random-secret" docker compose up --build
 ```
 
----
+## Development and tests
 
-## 🐳 Container Deployment
+- `python -m pytest -q`: clinical, audit, legacy, and enrichment regression tests.
+- `node --check web/app.js && node tests/browser_smoke.cjs`: JavaScript syntax and simulated browser interaction smoke checks (Node.js needed only for tests).
+- GitHub Actions runs the Python test matrix and browser checks on pull requests and pushes to the main branch.
 
-```bash
-# Build and run with Docker
-export AUDIT_SECRET_KEY="your-production-key-here"
-docker-compose up --build
+The browser calculator has no Python/WASM runtime because straightforward arithmetic can be executed directly in JavaScript. The API and audit service require a Python server and cannot run on static GitHub Pages. The browser UI works on current Chromium, Firefox, and Safari-derived browsers; extensive device-specific testing has not been performed.
 
-# Or with Docker directly
-docker build -t katz-hyperglycemia-sodium-corrector .
-docker run -p 8000:8000 -e AUDIT_SECRET_KEY="your-key" katz-hyperglycemia-sodium-corrector
-```
+## License
 
----
-
-## 📁 Project Structure
-
-```
-katz-hyperglycemia-sodium-corrector/
-├── katz_sodium.py          # Core sodium correction algorithm
-├── cli.py                  # Enterprise CLI interface
-├── enrichment.py           # Enrichment feature engines
-├── simulator.py            # High-throughput simulation
-├── agents/
-│   ├── base.py             # Security, PHI guard, audit trail
-│   ├── models.py           # Pydantic data models
-│   ├── supervisor.py       # Multi-agent orchestrator
-│   ├── workers.py          # Specialized evaluation workers
-│   ├── api.py              # FastAPI REST endpoints
-│   ├── metrics.py          # Prometheus metrics
-│   ├── learning.py         # Bayesian calibration
-│   └── streamer.py         # WebSocket telemetry
-├── tests/                  # Test suite
-├── web/                    # Web dashboard
-├── Dockerfile              # Container definition
-├── docker-compose.yml      # Container orchestration
-└── pyproject.toml          # Python project configuration
-```
+[MIT](LICENSE).
