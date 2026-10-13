@@ -23,7 +23,7 @@ async def lifespan(app: FastAPI):
 app = FastAPI(
     lifespan=lifespan,
     title="Katz Hyperglycemia Sodium Corrector API",
-    description="Enterprise Distributed Component Platform (Clinical & Biomedical AI)",
+    description="Sodium correction calculator and illustrative rule-evaluation interface",
     version="3.0.0-ENTERPRISE",
 )
 
@@ -47,7 +47,7 @@ def api_corrected_sodium(payload: SodiumRequest):
 
 @app.get("/health")
 def health():
-    return {"status": "HEALTHY", "service": "katz-hyperglycemia-sodium-corrector", "domain": "Clinical & Biomedical AI", "standard": "CAP / CLSI / ISO Standards", "version": "3.0.0-ENTERPRISE"}
+    return {"status": "HEALTHY", "service": "katz-hyperglycemia-sodium-corrector", "domain": "Clinical & Biomedical AI", "standard": "Illustrative auxiliary rules, not clinically validated", "version": "3.0.0-ENTERPRISE"}
 
 
 @app.get("/metrics")
