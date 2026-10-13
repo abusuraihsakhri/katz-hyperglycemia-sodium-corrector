@@ -7,6 +7,7 @@ from pydantic import BaseModel
 from .base import AuditLogger, PHIGuard
 from .models import SystemTaskPayload, ConsensusDossier
 from .supervisor import SystemSupervisor
+from katz_sodium import calculate_metrics
 
 supervisor = SystemSupervisor(model_provider="mock")
 
@@ -19,6 +20,19 @@ app = FastAPI(
 
 class ChatRequest(BaseModel):
     query: str
+
+
+class SodiumRequest(BaseModel):
+    sodium: float
+    glucose: float
+
+
+@app.post("/api/corrected-sodium")
+def api_corrected_sodium(payload: SodiumRequest):
+    try:
+        return calculate_metrics(sodium=payload.sodium, glucose=payload.glucose)
+    except (ValueError, TypeError) as exc:
+        raise HTTPException(status_code=422, detail=str(exc)) from exc
 
 
 @app.get("/health")
