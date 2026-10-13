@@ -2,8 +2,8 @@
   "openapi": "3.1.0",
   "info": {
     "title": "Katz Hyperglycemia Sodium Corrector API",
-    "description": "Enterprise Distributed Component Platform (Clinical & Cryptographic AI) adhering to CAP / CLSI / NIST Standards.",
-    "version": "3.0.0-ENTERPRISE",
+    "description": "FastAPI sodium correction and illustrative audit-service endpoints. Generic audit workers are not validated clinical rules.",
+    "version": "3.0.0",
     "contact": {
       "name": "Dr. Abu Suraih Sakhri",
       "url": "https://github.com/abusuraihsakhri"
@@ -22,7 +22,7 @@
     },
     "/metrics": {
       "get": {
-        "summary": "Prometheus operational metrics",
+        "summary": "JSON operational counts (not Prometheus text)",
         "responses": {
           "200": {
             "description": "Prometheus text metrics"
@@ -76,7 +76,7 @@
     },
     "/api/chat": {
       "post": {
-        "summary": "Air-gapped supervisory conversational assistant",
+        "summary": "Deterministic mock response, not a clinical consultation",
         "requestBody": {
           "content": {
             "application/json": {
@@ -107,6 +107,43 @@
         "responses": {
           "200": {
             "description": "Cryptographic audit trail"
+          }
+        }
+      }
+    },
+    "/api/corrected-sodium": {
+      "post": {
+        "summary": "Calculate Katz and Hillier corrected sodium estimates",
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "sodium": {
+                    "type": "number",
+                    "description": "mEq/L, 100–200"
+                  },
+                  "glucose": {
+                    "type": "number",
+                    "description": "mg/dL, >0–2000"
+                  }
+                },
+                "required": [
+                  "sodium",
+                  "glucose"
+                ]
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Corrected sodium estimates and interpretation caution"
+          },
+          "422": {
+            "description": "Invalid or out-of-range clinical measurements"
           }
         }
       }
