@@ -16,6 +16,7 @@ import argparse
 import csv
 import json
 import math
+import os
 import sys
 from typing import Dict, Any, List, Optional
 
@@ -183,7 +184,7 @@ def process_single(args) -> None:
 
 
 def process_batch(input_csv: str, output_csv: str) -> None:
-    if __import__("os").path.abspath(input_csv) == __import__("os").path.abspath(output_csv):
+    if os.path.abspath(input_csv) == os.path.abspath(output_csv):
         raise ValueError("Input and output CSV paths must differ")
     with open(input_csv, mode="r", encoding="utf-8-sig", newline="") as f:
         reader = csv.DictReader(f)
