@@ -95,3 +95,20 @@ def test_production_requires_audit_secret(monkeypatch):
     monkeypatch.setenv("ENVIRONMENT", "production")
     with pytest.raises(ValueError, match="required in production"):
         AuditTrail()
+
+
+def test_fastapi_clinical_route_function():
+    from fastapi import HTTPException
+    from agents.api import SodiumRequest, api_corrected_sodium
+
+    actual = api_corrected_sodium(SodiumRequest(sodium=135, glucose=400))
+    assert actual["katz_corrected_sodium_mEq_L"] == 139.8
+    with pytest.raises(HTTPException) as err:
+        api_corrected_sodium(SodiumRequest(sodium=135, glucose=0))
+    assert err.value.status_code == 422
+
+
+def test_unimplemented_llm_provider_is_not_silently_mocked():
+    from agents.llm_factory import LLMFactory
+    with pytest.raises(ValueError, match="not implemented"):
+        LLMFactory.create("openai")
