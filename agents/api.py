@@ -2,6 +2,7 @@
 FastAPI REST API Server for Katz Hyperglycemia Sodium Corrector.
 """
 from typing import Dict, Any, List
+from contextlib import asynccontextmanager
 from fastapi import FastAPI, HTTPException
 from pydantic import BaseModel
 from .base import AuditLogger, PHIGuard
@@ -11,7 +12,16 @@ from katz_sodium import calculate_metrics
 
 supervisor = SystemSupervisor(model_provider="mock")
 
+@asynccontextmanager
+async def lifespan(app: FastAPI):
+    # Fail fast rather than reporting a healthy service with an unsigned
+    # or development-key audit ledger.
+    AuditLogger.get_trail()
+    yield
+
+
 app = FastAPI(
+    lifespan=lifespan,
     title="Katz Hyperglycemia Sodium Corrector API",
     description="Enterprise Distributed Component Platform (Clinical & Biomedical AI)",
     version="3.0.0-ENTERPRISE",
