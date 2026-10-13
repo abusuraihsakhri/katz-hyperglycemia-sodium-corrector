@@ -112,3 +112,21 @@ def test_unimplemented_llm_provider_is_not_silently_mocked():
     from agents.llm_factory import LLMFactory
     with pytest.raises(ValueError, match="not implemented"):
         LLMFactory.create("openai")
+
+
+def test_cli_requires_explicit_measurements(capsys):
+    from katz_sodium import main
+    with pytest.raises(SystemExit) as err:
+        main(["single"])
+    assert err.value.code == 2
+    assert "Provide both" in capsys.readouterr().err
+
+    with pytest.raises(SystemExit) as err:
+        main(["single", "--sodium", "135"])
+    assert err.value.code == 2
+
+    main(["single", "--sodium", "135", "--glucose", "400"])
+    assert "139.8" in capsys.readouterr().out
+
+    main(["single", "--v1", "12", "--v2", "4"])
+    assert '"score"' in capsys.readouterr().out
